@@ -14,6 +14,7 @@ urlpatterns = [
     path("fotograf/<int:pk>/sil/", views.photo_delete, name="photo-delete"),
     path("saklama/<int:pk>/", views.storage_detail, name="storage-detail"),
     path("yonetim/", views.manage, name="manage"),
+    path("ayarlar/yedekleme/", views.backup_settings, name="backup-settings"),
     path("yonetim/<str:kind>/yeni/", views.crud_create, name="crud-create"),
     path("yonetim/<str:kind>/<int:pk>/duzenle/", views.crud_update, name="crud-update"),
     path("yonetim/<str:kind>/<int:pk>/sil/", views.crud_delete, name="crud-delete"),

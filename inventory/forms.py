@@ -111,3 +111,25 @@ class TagForm(StyledModelForm):
     class Meta:
         model = Tag
         fields = ["name"]
+
+
+class PortableRestoreUploadForm(forms.Form):
+    backup_file = forms.FileField(
+        label="Portable backup ZIP dosyası",
+        widget=forms.ClearableFileInput(attrs={"accept": ".zip,application/zip"}),
+    )
+
+    def clean_backup_file(self):
+        from .services.portable_backup import MAX_ARCHIVE_SIZE
+
+        upload = self.cleaned_data["backup_file"]
+        if upload.size > MAX_ARCHIVE_SIZE:
+            raise ValidationError("Yedek dosyası izin verilen boyutu aşıyor.")
+        return upload
+
+
+class PortableRestoreConfirmForm(forms.Form):
+    token = forms.CharField(widget=forms.HiddenInput)
+    confirm = forms.BooleanField(
+        label="Bu kurulumun envanterinin boş olduğunu ve restore işlemini onaylıyorum."
+    )

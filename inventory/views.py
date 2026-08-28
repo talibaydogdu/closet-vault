@@ -1,12 +1,40 @@
+import tempfile
+from pathlib import Path
+
 from django.contrib import messages
+from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.decorators import login_required
+from django.core import signing
 from django.core.paginator import Paginator
 from django.db import transaction
+from django.http import FileResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.views.decorators.http import require_http_methods
 
 from .filters import filter_items
-from .forms import CategoryForm, ItemForm, PersonForm, PhotoForm, StorageUnitForm, TagForm
+from .forms import (
+    CategoryForm,
+    ItemForm,
+    PersonForm,
+    PhotoForm,
+    PortableRestoreConfirmForm,
+    PortableRestoreUploadForm,
+    StorageUnitForm,
+    TagForm,
+)
 from .models import Category, Item, Person, Photo, StorageUnit, Tag
+from .services.portable_backup import (
+    PortableBackupError,
+    build_portable_backup,
+    cleanup_staged_backup,
+    domain_has_data,
+    restore_portable_backup,
+    stage_uploaded_backup,
+    validate_portable_backup,
+)
+
+PORTABLE_BACKUP_TOKEN_SALT = "inventory.portable-backup"
+PORTABLE_BACKUP_TOKEN_MAX_AGE = 30 * 60
 
 
 @login_required
@@ -228,4 +256,90 @@ def item_delete(request, pk):
         return redirect("catalog")
     return render(
         request, "inventory/confirm.html", {"object": item, "action": "kalıcı olarak silmek"}
+    )
+
+
+@staff_member_required
+@require_http_methods(["GET", "POST"])
+def backup_settings(request):
+    summary = {
+        "items": Item.objects.count(),
+        "photos": Photo.objects.count(),
+        "people": Person.objects.count(),
+        "categories": Category.objects.count(),
+        "storage_units": StorageUnit.objects.count(),
+        "tags": Tag.objects.count(),
+    }
+    upload_form = PortableRestoreUploadForm()
+    confirm_form = None
+    preview = None
+    restore_result = None
+
+    if request.method == "POST" and request.POST.get("action") == "export":
+        filename, backup = build_portable_backup()
+        response = FileResponse(backup, as_attachment=True, filename=filename)
+        response["Content-Type"] = "application/zip"
+        return response
+
+    if request.method == "POST" and request.POST.get("action") == "preview":
+        upload_form = PortableRestoreUploadForm(request.POST, request.FILES)
+        if upload_form.is_valid():
+            try:
+                path, validated = stage_uploaded_backup(upload_form.cleaned_data["backup_file"])
+                signed_value = signing.dumps(
+                    {"path": str(path), "user_id": request.user.pk},
+                    salt=PORTABLE_BACKUP_TOKEN_SALT,
+                )
+                preview = validated.manifest
+                confirm_form = PortableRestoreConfirmForm(initial={"token": signed_value})
+            except PortableBackupError as exc:
+                upload_form.add_error("backup_file", str(exc))
+
+    if request.method == "POST" and request.POST.get("action") == "restore":
+        confirm_form = PortableRestoreConfirmForm(request.POST)
+        if confirm_form.is_valid():
+            path = None
+            try:
+                payload = signing.loads(
+                    confirm_form.cleaned_data["token"],
+                    salt=PORTABLE_BACKUP_TOKEN_SALT,
+                    max_age=PORTABLE_BACKUP_TOKEN_MAX_AGE,
+                )
+                if payload.get("user_id") != request.user.pk:
+                    raise PortableBackupError("Restore onayı bu kullanıcıya ait değil.")
+                path = Path(payload["path"])
+                stage_root = Path(tempfile.gettempdir()) / "closet-vault-portable-backups"
+                if path.parent != stage_root or not path.is_file():
+                    raise PortableBackupError(
+                        "Geçici restore dosyası bulunamadı veya süresi doldu."
+                    )
+                with path.open("rb") as source:
+                    validated = validate_portable_backup(source)
+                restore_result = restore_portable_backup(validated)
+                messages.success(request, "Portable yedek başarıyla geri yüklendi.")
+            except signing.BadSignature:
+                messages.error(request, "Restore onayı geçersiz veya süresi dolmuş.")
+            except PortableBackupError as exc:
+                messages.error(request, str(exc))
+            except Exception:
+                messages.error(
+                    request,
+                    "Restore beklenmeyen bir hata nedeniyle tamamlanamadı; "
+                    "hiçbir veri uygulanmadı.",
+                )
+            finally:
+                if path:
+                    cleanup_staged_backup(path)
+
+    return render(
+        request,
+        "inventory/backup_settings.html",
+        {
+            "summary": summary,
+            "upload_form": upload_form,
+            "confirm_form": confirm_form,
+            "preview": preview,
+            "restore_result": restore_result,
+            "has_domain_data": domain_has_data(),
+        },
     )

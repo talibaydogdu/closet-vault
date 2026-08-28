@@ -91,3 +91,31 @@ Restore mevcut veritabanı ve mediayı **siler**; önce ayrıca yedek alın ve b
 ## Sonraki sürüm önerileri
 
 Nesne depolama, PostgreSQL trigram arama, çevrimdışı/PWA desteği, audit log, rol bazlı salt-okuma kullanıcıları ve sürükle-bırak fotoğraf sıralama. QR, yapay zekâ, laundry veya kombin özellikleri bilerek eklenmemiştir.
+
+## Portable Backup (uygulama yedeği)
+
+Portable Backup, PostgreSQL şemasına bağlı olmayan, sürümlenmiş bir Closet Vault veri aktarım formatıdır. Yetkili (`is_staff`) kullanıcı **Ayarlar → Yedekleme** ekranından **Tam Yedek Oluştur ve İndir** düğmesiyle tek bir ZIP indirebilir. ZIP içinde:
+
+- `manifest.json`: format/uygulama sürümü, oluşturulma zamanı ve kayıt sayıları,
+- `data.json`: kişiler, kategori hiyerarşisi, saklama birimleri, etiketler, ürünler, durumlar ve ilişkiler,
+- `media/`: checksum ile doğrulanan ürün fotoğrafları
+
+bulunur. `.env`, secret key, kullanıcı parolaları, session/cache tabloları ve database parolası portable ZIP'e dahil edilmez.
+
+### Teknik PostgreSQL yedeğinden farkı
+
+Yukarıdaki `scripts/backup.sh` yedeği PostgreSQL dump, media volume ve `.env` içerir; aynı kurulumun hızlı ve eksiksiz felaket kurtarması içindir. Portable ZIP ise mantıksal domain verilerini şemadan bağımsız referanslarla taşır ve özellikle **yeni/temiz Closet Vault kurulumuna aktarım** içindir. İki yöntem birbirinin yerine geçmez; düzenli olarak ikisini de alın.
+
+### Temiz kuruluma restore
+
+1. Hedef sürümü kurup migration'ları çalıştırın ve bir yönetici oluşturun; `seed_demo` çalıştırmayın.
+2. Yönetici hesabıyla giriş yapıp **Ayarlar → Yedekleme** ekranını açın.
+3. ZIP'i seçip **Yedeği Doğrula ve Önizle** düğmesine basın.
+4. Manifest özetini ve uyarıyı kontrol edin, açık onay kutusunu işaretleyin.
+5. **Yedekten Geri Yükle** düğmesine basın ve sonuç özetini kontrol edin.
+
+Portable restore mevcut domain verilerinin üzerine sessizce yazmaz; kişi, kategori, saklama birimi, etiket, ürün veya fotoğraf varsa işlemi reddeder. Geçersiz ZIP, eksik/değiştirilmiş media, güvenli olmayan ZIP yolu, aşırı boyut/sıkıştırma oranı ve desteklenmeyen format sürümü veriye dokunulmadan reddedilir. Restore veritabanı transaction'ı içinde yapılır.
+
+Her portable yedekte zorunlu `backup_format_version` bulunur. İlk format `1`'dir ve importer sürüm tabanlı adapter tablosu kullanır; gelecekte `import_v2(...)` gibi dönüştürücüler eklenebilir. Eski bir yedeği içe aktarmadan önce hedef Closet Vault sürümünün ilgili formatı desteklediğini doğrulayın.
+
+Portable ZIP kişisel envanter, notlar ve fotoğraflar içerdiği için hassastır. Dosyayı şifreli ve erişimi kısıtlı bir konumda saklayın, birden fazla kopya tutun ve yedekleri periyodik olarak temiz bir test kurulumunda doğrulayın.
