@@ -1,0 +1,1 @@
+{% load inventory_tags %}<div class="col-6 col-md-3"><label>{{ label }}</label><select class="form-select" name="{{ name }}"><option value="">Tümü</option>{% for option in options %}<option value="{{ option.pk }}" {% if request.GET|query_value:name == option.pk|stringformat:'s' %}selected{% endif %}>{{ option }}</option>{% endfor %}</select></div>

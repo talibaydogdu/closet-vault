@@ -1,0 +1,57 @@
+{% extends 'inventory/base.html' %}
+{% block content %}
+<h1>Ayarlar → Yedekleme</h1>
+<p class="text-muted">Portable ZIP yedeği, envanter verilerini ve ürün fotoğraflarını temiz bir Closet Vault kurulumuna taşır. PostgreSQL teknik yedeğinin yerine geçmez.</p>
+
+<div class="row g-4">
+  <section class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-header"><h2 class="h4 mb-0">Yedek Oluştur</h2></div>
+      <div class="card-body">
+        <dl class="row">
+          <dt class="col-7">Ürün</dt><dd class="col-5">{{ summary.items }}</dd>
+          <dt class="col-7">Fotoğraf</dt><dd class="col-5">{{ summary.photos }}</dd>
+          <dt class="col-7">Kişi</dt><dd class="col-5">{{ summary.people }}</dd>
+          <dt class="col-7">Kategori</dt><dd class="col-5">{{ summary.categories }}</dd>
+          <dt class="col-7">Saklama birimi</dt><dd class="col-5">{{ summary.storage_units }}</dd>
+          <dt class="col-7">Etiket</dt><dd class="col-5">{{ summary.tags }}</dd>
+        </dl>
+        <form method="post">
+          {% csrf_token %}<input type="hidden" name="action" value="export">
+          <button class="btn btn-primary btn-lg">Tam Yedek Oluştur ve İndir</button>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <section class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-header"><h2 class="h4 mb-0">Yedekten Geri Yükle</h2></div>
+      <div class="card-body">
+        {% if has_domain_data %}<div class="alert alert-warning"><strong>Uyarı:</strong> Bu kurulumda envanter verisi var. Portable restore mevcut verilerin üzerine yazmaz ve yalnızca boş envanterde çalışır.</div>{% endif %}
+        <form method="post" enctype="multipart/form-data">
+          {% csrf_token %}<input type="hidden" name="action" value="preview">
+          {{ upload_form.as_p }}
+          <button class="btn btn-outline-primary">Yedeği Doğrula ve Önizle</button>
+        </form>
+
+        {% if preview %}
+          <hr><h3 class="h5">Yedek bilgileri</h3>
+          <p><strong>Oluşturulma:</strong> {{ preview.created_at }}<br><strong>Format:</strong> v{{ preview.backup_format_version }}<br><strong>Uygulama sürümü:</strong> {{ preview.application_version }}</p>
+          <ul><li>{{ preview.counts.items }} ürün</li><li>{{ preview.counts.photos }} fotoğraf</li><li>{{ preview.counts.categories }} kategori</li><li>{{ preview.counts.people }} kişi</li><li>{{ preview.counts.storage_units }} saklama birimi</li><li>{{ preview.counts.tags }} etiket</li></ul>
+          <div class="alert alert-danger">Restore yalnızca boş kuruluma yapılır. İşleme başlamadan önce teknik PostgreSQL yedeği alın.</div>
+          <form method="post">
+            {% csrf_token %}<input type="hidden" name="action" value="restore">
+            {{ confirm_form.as_p }}
+            <button class="btn btn-danger">Yedekten Geri Yükle</button>
+          </form>
+        {% endif %}
+
+        {% if restore_result %}
+          <hr><div class="alert alert-success"><h3 class="h5">Restore tamamlandı</h3><ul class="mb-0"><li>{{ restore_result.items }} ürün oluşturuldu</li><li>{{ restore_result.photos }} fotoğraf restore edildi</li><li>{{ restore_result.categories }} kategori oluşturuldu</li><li>{{ restore_result.skipped }} kayıt atlandı</li></ul></div>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+</div>
+{% endblock %}

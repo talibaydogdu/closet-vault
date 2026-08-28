@@ -1,0 +1,1 @@
+{% extends 'inventory/base.html' %}{% block content %}<div class="row justify-content-center"><div class="col-md-5"><h1>Giriş</h1><form method="post" class="card card-body">{% csrf_token %}{{ form.as_p }}<button class="btn btn-primary btn-lg">Giriş yap</button></form></div></div>{% endblock %}

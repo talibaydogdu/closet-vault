@@ -1,0 +1,2 @@
+{% extends 'inventory/base.html' %}{% block content %}<h1>Yönetim</h1>{% for title,kind,objects in sections %}{% endfor %}
+{% include 'inventory/_manage_section.html' with title='Kişiler' kind='people' objects=people %}{% include 'inventory/_manage_section.html' with title='Kategoriler' kind='categories' objects=categories %}{% include 'inventory/_manage_section.html' with title='Saklama birimleri' kind='units' objects=units %}{% include 'inventory/_manage_section.html' with title='Etiketler' kind='tags' objects=tags %}{% endblock %}
